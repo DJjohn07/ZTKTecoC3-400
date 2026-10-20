@@ -1,0 +1,40 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Het apparaat is al ingesteld"
+        },
+        "error": {
+            "cannot_connect": "Verbinden is mislukt",
+            "unknown": "Onverwachte fout",
+            "invalid_password": "Het wachtwoord mag alleen ASCII-tekens bevatten"
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "host": "Host",
+                    "name": "Naam",
+                    "password": "Wachtwoord",
+                    "port": "Poort"
+                },
+                "data_description": {
+                    "host": "Host",
+                    "name": "Naam van het apparaat",
+                    "password": "Wachtwoord",
+                    "port": "Poort"
+                }
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "aux_on_duration": "Activatieduur van de extra uitgang (seconden)",
+                    "scan_interval": "Interval voor het ophalen van de C3 apparaat status (seconden)",
+                    "unlock_duration": "Duur van de slotontgrendeling (seconden)"
+                },
+                "title": "C3 apparaat opties"
+            }
+        }
+    }
+}
