@@ -9,6 +9,8 @@ SUPPORTED_PLATFORMS: list[Platform] = [
     Platform.LOCK,
     Platform.SWITCH,
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.NUMBER,
 ]
 
 CONF_UNLOCK_DURATION = "unlock_duration"
@@ -32,3 +34,9 @@ IO_LOCK_TIMEOUT = 10
 POLL_TIMEOUT = 15
 # Maximum number of RT log reads per poll cycle.
 MAX_RTLOG_READS = 10
+
+# Pulse buttons: relay activation time selectable in Home Assistant.
+MIN_PULSE_DURATION = 1
+MAX_PULSE_DURATION = 10
+DEFAULT_PULSE_DURATION_DOOR = 3
+DEFAULT_PULSE_DURATION_AUX = 1

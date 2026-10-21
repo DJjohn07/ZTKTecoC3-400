@@ -9,6 +9,8 @@ Vychází z [vwout/hass-zkaccess_c3](https://github.com/vwout/hass-zkaccess_c3),
 - přepínač alarmu pro každé dveře (vypnutí zruší všechny alarmy panelu)
 - binární senzor pro každý pomocný vstup
 - přepínač pro každý pomocný výstup
+- tlačítko impulsu pro každé dveře a každý pomocný výstup
+- doba impulsu 1–10 s pro každé tlačítko (Konfigurace zařízení)
 
 ## Instalace přes HACS
 

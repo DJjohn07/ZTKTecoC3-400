@@ -99,6 +99,9 @@ class C3Coordinator(DataUpdateCoordinator[bool]):
         self._password: str = entry.data.get(CONF_PASSWORD) or ""
         self._io_lock = threading.Lock()
         self._door_events: dict[int, rtlog.EventRecord] = {}
+        # Pulse durations per output, keyed "door1".."door4", "aux1".."aux4".
+        # Filled by the number entities (restored after restart).
+        self.pulse_durations: dict[str, int] = {}
 
         self.panel = C3(self._host, self._port)
         self.status = rtlog.DoorAlarmStatusRecord()
@@ -203,18 +206,29 @@ class C3Coordinator(DataUpdateCoordinator[bool]):
             self._io_lock.release()
 
     def _send_command(self, command: ControlDeviceBase) -> None:
-        """Send a control command to the panel."""
+        """Send a control command to the panel.
+
+        The panel silently drops idle sessions, so the library may still
+        report a connection that is already dead. When the first attempt
+        fails, the session is reopened and the command is sent once more.
+        """
         if not self._acquire():
             raise HomeAssistantError("C3 panel connection is busy")
         try:
-            if not self.panel.is_connected() and not self._connect():
-                raise HomeAssistantError(
-                    f"Cannot connect to C3 panel at {self._host}:{self._port}"
-                )
-            self.panel.control_device(command)
-        except (OSError, ValueError) as err:
-            self._disconnect()
-            raise HomeAssistantError(f"C3 panel command failed: {err}") from err
+            last_err: Exception | None = None
+            for _attempt in range(2):
+                try:
+                    if not self.panel.is_connected() and not self._connect():
+                        raise ConnectionError(
+                            f"Cannot connect to C3 panel at {self._host}:{self._port}"
+                        )
+                    self.panel.control_device(command)
+                    return
+                except (OSError, ValueError) as err:
+                    last_err = err
+                    _LOGGER.debug("C3 command failed, reconnecting: %s", err)
+                    self._disconnect()
+            raise HomeAssistantError(f"C3 panel command failed: {last_err}")
         finally:
             self._io_lock.release()
 
