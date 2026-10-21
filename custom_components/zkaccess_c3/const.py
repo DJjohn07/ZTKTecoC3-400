@@ -34,6 +34,8 @@ IO_LOCK_TIMEOUT = 10
 POLL_TIMEOUT = 15
 # Maximum number of RT log reads per poll cycle.
 MAX_RTLOG_READS = 10
+# Consecutive failed polls before entities become unavailable.
+MAX_FAILED_POLLS = 3
 
 # Pulse buttons: relay activation time selectable in Home Assistant.
 MIN_PULSE_DURATION = 1

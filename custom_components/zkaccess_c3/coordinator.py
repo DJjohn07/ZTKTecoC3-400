@@ -29,6 +29,7 @@ from .const import (
     IO_LOCK_TIMEOUT,
     MAX_OUTPUT_DURATION,
     MAX_POLL_INTERVAL,
+    MAX_FAILED_POLLS,
     MAX_RTLOG_READS,
     MIN_OUTPUT_DURATION,
     MIN_POLL_INTERVAL,
@@ -98,6 +99,7 @@ class C3Coordinator(DataUpdateCoordinator[bool]):
         self._port: int = entry.data[CONF_PORT]
         self._password: str = entry.data.get(CONF_PASSWORD) or ""
         self._io_lock = threading.Lock()
+        self._failed_polls = 0
         self._door_events: dict[int, rtlog.EventRecord] = {}
         # Pulse durations per output, keyed "door1".."door4", "aux1".."aux4".
         # Filled by the number entities (restored after restart).
@@ -168,40 +170,44 @@ class C3Coordinator(DataUpdateCoordinator[bool]):
             finally:
                 self._io_lock.release()
 
+    def _read_rt_log(self) -> None:
+        """Read the realtime log until a door/alarm status record arrives.
+
+        The panel may answer with an empty log (nothing new, or the library
+        is switching from binary to key/value mode on firmware 4.x). That is
+        a valid answer, not an error: the previous status is kept.
+        """
+        for _ in range(MAX_RTLOG_READS):
+            for log in self.panel.get_rt_log():
+                if isinstance(log, rtlog.DoorAlarmStatusRecord):
+                    self.status = log
+                    return
+                if (
+                    isinstance(log, rtlog.EventRecord)
+                    and log.port_nr > 0
+                    and log.event_type not in _AUX_EVENTS
+                ):
+                    self._door_events[log.port_nr] = log
+
     def _poll(self) -> bool:
-        """Read the realtime log until a door/alarm status record is received."""
+        """Poll the panel; reconnect once when the session has died."""
         if not self._acquire():
             raise UpdateFailed("C3 panel connection is busy")
         try:
-            if not self.panel.is_connected() and not self._connect():
-                raise UpdateFailed(
-                    f"Cannot connect to C3 panel at {self._host}:{self._port}"
-                )
-
-            got_status = False
-            for _ in range(MAX_RTLOG_READS):
-                logs = self.panel.get_rt_log()
-                for log in logs:
-                    if isinstance(log, rtlog.DoorAlarmStatusRecord):
-                        self.status = log
-                        got_status = True
-                    elif (
-                        isinstance(log, rtlog.EventRecord)
-                        and log.port_nr > 0
-                        and log.event_type not in _AUX_EVENTS
-                    ):
-                        self._door_events[log.port_nr] = log
-                if got_status or not logs:
-                    break
-
-            if not got_status:
-                # Force a fresh session on the next poll.
-                self._disconnect()
-                raise UpdateFailed("No status received from C3 panel")
-            return True
-        except (OSError, ValueError) as err:
-            self._disconnect()
-            raise UpdateFailed(f"Communication with C3 panel failed: {err}") from err
+            last_err: Exception | None = None
+            for _attempt in range(2):
+                try:
+                    if not self.panel.is_connected() and not self._connect():
+                        raise ConnectionError(
+                            f"Cannot connect to C3 panel at {self._host}:{self._port}"
+                        )
+                    self._read_rt_log()
+                    return True
+                except (OSError, ValueError) as err:
+                    last_err = err
+                    _LOGGER.debug("C3 poll failed, reconnecting: %s", err)
+                    self._disconnect()
+            raise UpdateFailed(f"Communication with C3 panel failed: {last_err}")
         finally:
             self._io_lock.release()
 
@@ -235,12 +241,29 @@ class C3Coordinator(DataUpdateCoordinator[bool]):
     # --- Async API ----------------------------------------------------------
 
     async def _async_update_data(self) -> bool:
-        """Fetch the realtime log from the panel."""
+        """Fetch the realtime log from the panel.
+
+        Single failed polls are tolerated: entities keep their last state and
+        become unavailable only after MAX_FAILED_POLLS failures in a row.
+        """
         try:
             async with asyncio.timeout(POLL_TIMEOUT):
-                return await self.hass.async_add_executor_job(self._poll)
-        except TimeoutError as err:
+                result = await self.hass.async_add_executor_job(self._poll)
+        except (TimeoutError, UpdateFailed) as err:
+            self._failed_polls += 1
+            if self.data is not None and self._failed_polls < MAX_FAILED_POLLS:
+                _LOGGER.debug(
+                    "C3 poll failed (%d/%d): %s",
+                    self._failed_polls,
+                    MAX_FAILED_POLLS,
+                    err,
+                )
+                return self.data
+            if isinstance(err, UpdateFailed):
+                raise
             raise UpdateFailed("Timeout while polling C3 panel") from err
+        self._failed_polls = 0
+        return result
 
     async def async_send_command(self, command: ControlDeviceBase) -> None:
         """Send a control command and refresh the state afterwards."""
