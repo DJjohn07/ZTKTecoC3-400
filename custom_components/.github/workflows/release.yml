@@ -1,1 +1,50 @@
+name: Release
 
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check manifest version matches tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          MANIFEST=$(jq -r .version custom_components/zkaccess_c3/manifest.json)
+          if [ "$TAG" != "$MANIFEST" ]; then
+            echo "::error::Tag v$TAG neodpovídá verzi v manifest.json ($MANIFEST)"
+            exit 1
+          fi
+
+      - name: Extract release notes from CHANGELOG
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          awk -v ver="$TAG" '
+            $0 ~ "^## \\[" ver "\\]" {found=1; next}
+            found && /^## \[/ {exit}
+            found && /^\[[0-9]/ {exit}
+            found {print}
+          ' CHANGELOG.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "::error::V CHANGELOG.md chybí sekce ## [$TAG]"
+            exit 1
+          fi
+
+      - name: Build ZIP
+        run: |
+          cd custom_components/zkaccess_c3
+          zip -r ../../zkaccess_c3.zip . -x '*/__pycache__/*'
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release_notes.md
+          files: zkaccess_c3.zip
