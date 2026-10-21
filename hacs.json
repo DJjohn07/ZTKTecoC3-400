@@ -1,5 +1,7 @@
 {
     "name": "ZKTeco C3 Access Control Panel",
     "homeassistant": "2025.2.0",
-    "render_readme": true
+    "render_readme": true,
+    "zip_release": true,
+    "filename": "zkaccess_c3.zip"
 }

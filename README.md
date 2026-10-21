@@ -20,6 +20,10 @@ Vychází z [vwout/hass-zkaccess_c3](https://github.com/vwout/hass-zkaccess_c3),
 4. Nastavení → Zařízení a služby → Přidat integraci → „C3/inBio Door Access Control Panel“
 5. Zadat IP adresu panelu, port `4370` a komunikační heslo
 
+## Aktualizace
+
+HACS nabízí aktualizace podle vydaných verzí (GitHub Releases). Přehled změn je v [CHANGELOG.md](CHANGELOG.md).
+
 ## Volby
 
 | Volba | Výchozí | Rozsah |
